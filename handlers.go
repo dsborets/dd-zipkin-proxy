@@ -76,7 +76,10 @@ func parseSpansWithJSON(spansChannel chan<- *zipkincore.Span, body io.Reader, ve
 		}
 
 		for _, span := range parsedSpansV2 {
-			parsedSpans = append(parsedSpans, span.ToZipkincoreSpan())
+			zipkinSpan := span.ToZipkincoreSpan()
+			if zipkinSpan != nil {
+				parsedSpans = append(parsedSpans, zipkinSpan)
+			}
 		}
 
 	default:

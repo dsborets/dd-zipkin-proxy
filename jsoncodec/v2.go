@@ -1,9 +1,15 @@
 package jsoncodec
 
 import (
+	"strconv"
+
 	"github.com/flachnetz/dd-zipkin-proxy/cache"
 	"github.com/openzipkin/zipkin-go-opentracing/thrift/gen-go/zipkincore"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
+
+var log = logrus.WithField("prefix", "jsoncodec")
 
 type SpanV2 struct {
 	TraceID  Id  `json:"traceId"`
@@ -16,9 +22,9 @@ type SpanV2 struct {
 
 	Tags map[string]string `json:"tags"`
 
-	Kind      string `json:"kind"`
-	Timestamp int64  `json:"timestamp"`
-	Duration  int64  `json:"duration"`
+	Kind      string      `json:"kind"`
+	Timestamp interface{} `json:"timestamp"`
+	Duration  interface{} `json:"duration"`
 }
 
 func (span *SpanV2) ToZipkincoreSpan() *zipkincore.Span {
@@ -47,7 +53,34 @@ func (span *SpanV2) ToZipkincoreSpan() *zipkincore.Span {
 		parentId = nil
 	}
 
-	times := [2]int64{span.Timestamp, span.Duration}
+	var timeStamp int64
+	var duration int64
+	var err error
+
+	switch span.Timestamp.(type) {
+	case string:
+		timeStamp, err = strconv.ParseInt(span.Timestamp.(string), 10, 64)
+	case float64:
+		timeStamp = int64(span.Timestamp.(float64))
+	default:
+		err = errors.New("Incorrect data type for `Timestamp`")
+	}
+
+	switch span.Duration.(type) {
+	case string:
+		duration, err = strconv.ParseInt(span.Duration.(string), 10, 64)
+	case float64:
+		duration = int64(span.Duration.(float64))
+	default:
+		err = errors.New("Incorrect data type for `Duration`")
+	}
+
+	if err != nil {
+		log.Warn(err)
+		return nil
+	}
+
+	times := [2]int64{timeStamp, duration}
 
 	return &zipkincore.Span{
 		TraceID: int64(span.TraceID),

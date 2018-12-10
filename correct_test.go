@@ -1,10 +1,14 @@
 package zipkinproxy
 
 import (
+	"encoding/json"
+	"math/rand"
+	"strings"
+	"testing"
+
+	"github.com/flachnetz/dd-zipkin-proxy/jsoncodec"
 	. "github.com/onsi/gomega"
 	"github.com/openzipkin/zipkin-go-opentracing/thrift/gen-go/zipkincore"
-	"math/rand"
-	"testing"
 )
 
 func TestTree(t *testing.T) {
@@ -116,6 +120,33 @@ func TestCorrectTimings(t *testing.T) {
 		shared := tree.GetSpan(*sharedClient.ParentID, sharedClient.ID)
 		Expect(*shared.Timestamp).To(BeEquivalentTo(baseOffset + 100))
 	}
+}
+
+func TestSpanV2TimigAndDurationAsString(t *testing.T) {
+	RegisterTestingT(t)
+	span := &jsoncodec.SpanV2{ID: 1, Timestamp: "1234567890123456", Duration: "1234567890123457"}
+	Expect(*span.ToZipkincoreSpan().Duration).To(BeEquivalentTo(int64(1234567890123457)))
+	Expect(*span.ToZipkincoreSpan().Timestamp).To(BeEquivalentTo(int64(1234567890123456)))
+
+	var parsedSpansV2 []jsoncodec.SpanV2
+	var body = "[{\"traceId\":\"076290d0ed624165b71daae0b7d38354\",\"name\":\"/\",\"id\":\"4c9cb86a4bee4905\",\"parentId\":null,\"kind\":\"SERVER\",\"timestamp\":\"1544326139547000\",\"duration\":\"1456809345693245\",\"debug\":true,\"shared\":true,\"localEndpoint\":{\"serviceName\":\"some-service-name\"}}]"
+	json.NewDecoder(strings.NewReader(body)).Decode(&parsedSpansV2)
+
+	spanFomJSON := parsedSpansV2[0]
+	Expect(*spanFomJSON.ToZipkincoreSpan().Duration).To(BeEquivalentTo(int64(1456809345693245)))
+	Expect(*spanFomJSON.ToZipkincoreSpan().Timestamp).To(BeEquivalentTo(int64(1544326139547000)))
+}
+
+func TestSpanV2TimigAndDurationAsNumber(t *testing.T) {
+	RegisterTestingT(t)
+
+	var parsedSpansV2 []jsoncodec.SpanV2
+	var body = "[{\"traceId\":\"076290d0ed624165b71daae0b7d38354\",\"name\":\"/\",\"id\":\"4c9cb86a4bee4905\",\"parentId\":null,\"kind\":\"SERVER\",\"timestamp\":1544326139547000,\"duration\":1456809,\"debug\":true,\"shared\":true,\"localEndpoint\":{\"serviceName\":\"some-service-name\"}}]"
+	json.NewDecoder(strings.NewReader(body)).Decode(&parsedSpansV2)
+
+	spanFomJSON := parsedSpansV2[0]
+	Expect(*spanFomJSON.ToZipkincoreSpan().Duration).To(BeEquivalentTo(int64(1456809)))
+	Expect(*spanFomJSON.ToZipkincoreSpan().Timestamp).To(BeEquivalentTo(int64(1544326139547000)))
 }
 
 func newInt64(i int64) *int64 {
